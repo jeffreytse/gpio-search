@@ -1,0 +1,93 @@
+#!/bin/sh
+# gpio-search -- A tool to search the gpio quickly
+# Copyright © 2021 Jeffrey Tse
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+
+min=${1:-1}
+max=${2:-1000}
+
+values=
+
+echo
+echo "######################################"
+echo "#  Name: GPIO Search Program v0.1.0  #"
+echo "#  Author: Jeffrey Tse               #"
+echo "######################################"
+echo
+
+# Initialize and save current value of all GPIOs
+for i in $(seq $min 1 $max); do
+  echo -en "\rInitalize $i..."
+  dir="/sys/class/gpio/gpio$i"
+  if [ ! -d $dir ]; then
+    echo $i > /sys/class/gpio/export 2>/dev/null
+  fi
+  if [ -f "$dir/edge" ]; then
+    echo both > "$dir/edge" 2>/dev/null
+  fi
+  val=$(cat "$dir/value" 2>/dev/null || echo x)
+  values="$values${val: -1}"
+done
+
+echo -e "\nPlease change one of your GPIOs state..."
+
+gpio_num=
+i=$min
+n=20
+
+while :; do
+  echo -en "\rChecking GPIO $i..."
+  dir="/sys/class/gpio/gpio$i"
+  val=$(cat "$dir/value" 2>/dev/null || echo x)
+  if [ $val != ${values:$((i-min)):1} ]; then
+    gpio_num=$i
+    break
+  fi
+  if [ $i == $max ]; then
+    i=$min
+    n=$((n - 1))
+  else
+    i=$((i + 1))
+  fi
+  if [ $n == 0 ]; then
+    break
+  fi
+done
+
+# If not found then return
+if [ -z $gpio_num ]; then
+  echo -e "\nNot found!\n"
+  exit
+else
+  echo -e "\nFound!\n"
+fi
+
+gpio_val=
+
+# Showing the GPIO value
+echo -e "LOC $dir"
+while :; do
+  val=$(cat "$dir/value" 2>/dev/null)
+  [ "$val" == "$gpio_val" ] && continue
+  gpio_val=$val
+  echo -en "\rGPIO pin=$gpio_num value=$gpio_val"
+done
+
